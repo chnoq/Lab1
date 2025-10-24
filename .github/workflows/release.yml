@@ -3,22 +3,18 @@ name: 'C++ CI'
 on:
   push:
     branches:
-      - lab1
+      - Lab1
       - feature/github_actions
 
+permissions:
+  contents: write
+
 jobs:
-  build:
+  create-release:
     runs-on: ubuntu-latest
-    permissions: write-all
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
     steps:
-      - uses: actions/checkout@v3
-        with:
-          submodules: true
-      - run: sudo apt-get update && sudo apt-get install libboost-test-dev -y
-      - run: cmake . -DPATCH_VERSION=${{ github.run_number }}
-      - run: cmake --build .
-      - run: cmake --build . --target test
-      - run: cmake --build . --target package
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1
@@ -29,13 +25,61 @@ jobs:
           release_name: Release ${{ github.run_number }}
           draft: false
           prerelease: false
-      - name: Upload Release Asset
-        id: upload-release-asset
+
+  build-windows:
+    runs-on: windows-latest
+    needs: create-release
+    env:
+      VCPKG_ROOT: ${{ github.workspace }}\vcpkg
+      CMAKE_BUILD_TYPE: Release
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+        with:
+          submodules: true
+
+      - name: Install vcpkg and Boost
+        run: |
+          git clone https://github.com/Microsoft/vcpkg.git
+          .\vcpkg\bootstrap-vcpkg.bat
+          .\vcpkg\vcpkg install boost-test:x64-windows
+          echo "VCPKG_ROOT=${{ github.workspace }}\\vcpkg" >> $env:GITHUB_ENV
+
+      - run: cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE="${{ env.VCPKG_ROOT }}\\scripts\\buildsystems\\vcpkg.cmake" -DPATCH_VERSION=${{ github.run_number }}
+      - run: cmake --build build --config Release
+      - run: ctest --test-dir build --output-on-failure
+      - run: cmake --build build --config Release --target package
+
+      - name: Upload Windows Release Asset
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: build/helloworld-0.0.${{ github.run_number }}-win64.zip
+          asset_name: helloworld-0.0.${{ github.run_number }}-win64.zip
+          asset_content_type: application/zip
+
+
+  build-linux:
+    runs-on: ubuntu-latest
+    needs: create-release
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
+      - run: sudo apt-get update && sudo apt-get install libboost-test-dev -y
+      - run: cmake . -DPATCH_VERSION=${{ github.run_number }}
+      - run: cmake --build .
+      - run: cmake --build . --target test
+      - run: cmake --build . --target package
+      - name: Upload Linux Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
           asset_path: ./helloworld-0.0.${{ github.run_number }}-Linux.deb
           asset_name: helloworld-0.0.${{ github.run_number }}-Linux.deb
           asset_content_type: application/vnd.debian.binary-package
