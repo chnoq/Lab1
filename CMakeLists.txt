@@ -56,7 +56,6 @@ else ()
 endif()
 
 
-
 install(TARGETS helloworld_cli RUNTIME DESTINATION bin)
 
 if(WIN32)

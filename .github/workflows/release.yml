@@ -30,26 +30,28 @@ jobs:
     runs-on: windows-latest
     needs: create-release
     env:
-      VCPKG_ROOT: ${{ github.workspace }}\vcpkg
-      CMAKE_BUILD_TYPE: Release
+      VCPKG_ROOT: ${{ github.workspace }}\vcpkg # Путь до vcpkg
+      CMAKE_BUILD_TYPE: Release # Режим сборки CMake
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v3 
         with:
           submodules: true
 
       - name: Install vcpkg and Boost
         run: |
-          git clone https://github.com/Microsoft/vcpkg.git
-          .\vcpkg\bootstrap-vcpkg.bat
-          .\vcpkg\vcpkg install boost-test:x64-windows
-          echo "VCPKG_ROOT=${{ github.workspace }}\\vcpkg" >> $env:GITHUB_ENV
-
+          git clone https://github.com/Microsoft/vcpkg.git # Клонируем vcpkg
+          .\vcpkg\bootstrap-vcpkg.bat # Сборка vcpkg
+          .\vcpkg\vcpkg install boost-test:x64-windows # Установка Boost
+          echo "VCPKG_ROOT=${{ github.workspace }}\\vcpkg" >> $env:GITHUB_ENV # Сохраняем путь
+      
+        # Создание файлов сборки
       - run: cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE="${{ env.VCPKG_ROOT }}\\scripts\\buildsystems\\vcpkg.cmake" -DPATCH_VERSION=${{ github.run_number }}
-      - run: cmake --build build --config Release
-      - run: ctest --test-dir build --output-on-failure
-      - run: cmake --build build --config Release --target package
+
+      - run: cmake --build build --config Release # Сборка проекта
+      - run: ctest --test-dir build --output-on-failure # Запуск тестов
+      - run: cmake --build build --config Release --target package # Создание .zip
 
       - name: Upload Windows Release Asset
         uses: actions/upload-release-asset@v1
@@ -69,11 +71,15 @@ jobs:
       - uses: actions/checkout@v3
         with:
           submodules: true
-      - run: sudo apt-get update && sudo apt-get install libboost-test-dev -y
+      - run: sudo apt-get update && sudo apt-get install libboost-test-dev -y # Установка Boost
+
+        # Создание файлов сборки
       - run: cmake . -DPATCH_VERSION=${{ github.run_number }}
+
       - run: cmake --build .
       - run: cmake --build . --target test
       - run: cmake --build . --target package
+      
       - name: Upload Linux Release Asset
         uses: actions/upload-release-asset@v1
         env:
